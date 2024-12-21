@@ -1,6 +1,7 @@
 import { Schema, model, models } from "mongoose";
+import { IUser } from "@/types/user";
 
-const UserSchema = new Schema({
+const UserSchema = new Schema<IUser>({
   clerkId: {
     type: String,
     required: true,
@@ -24,8 +25,23 @@ const UserSchema = new Schema({
   lastName: {
     type: String,
   },
+  bio: {
+    type: String,
+    default: "",
+  },
+  followers: [{
+    type: Schema.Types.ObjectId,
+    ref: 'User'
+  }],
+  following: [{
+    type: Schema.Types.ObjectId,
+    ref: 'User'
+  }],
+}, {
+  timestamps: true
 });
 
-const User = models?.User || model("User", UserSchema);
+const User = models?.User || model<IUser>("User", UserSchema);
 
 export default User;
+

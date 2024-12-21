@@ -1,28 +1,26 @@
 import { redirect } from "next/navigation";
 import { auth, clerkClient } from "@clerk/nextjs/server";
-import { getUserByClerkId } from "@/actions/user.actions";
+import { getUserById, getUserByClerkId } from "@/actions/user.actions";
 import FollowButton from "@/components/FollowButton";
 import Link from "next/link";
 import Image from "next/image";
 import BlogCard from "@/components/BlogCard"
 import { getPosts } from "@/actions/post.actions";
 
-const Profile = async ({ params }: { params: { profile: string[] } }) => {
+const Profile = async ({ params }: { params: { id: string } }) => {
   const { userId: clerkUserId } = auth();
 
   if (!clerkUserId) {
     redirect("/sign-in");
   }
 
-  const profileClerkId = params.profile?.[0] || clerkUserId;
-  const [currentUser, profileUser, clerkUser, posts] = await Promise.all([
+  const [currentUser, profileUser, posts] = await Promise.all([
     getUserByClerkId(clerkUserId),
-    getUserByClerkId(profileClerkId),
-    clerkClient.users.getUser(profileClerkId),
-    getPosts() // Fetch all posts for now. You might want to filter this for the specific user later.
+    getUserById(params.id),
+    getPosts()
   ]);
-  
-  if (!profileUser || !clerkUser) {
+
+  if (!profileUser) {
     return (
       <div className="flex justify-center items-center min-h-[60vh]">
         <div className="text-center">
@@ -33,14 +31,18 @@ const Profile = async ({ params }: { params: { profile: string[] } }) => {
     );
   }
 
-  const isOwnProfile = clerkUserId === profileUser.clerkId;
+  // Get Clerk user data for the profile we're viewing
+  const profileClerkUser = await clerkClient.users.getUser(profileUser.clerkId);
+
+  const isOwnProfile = currentUser?._id?.toString() === profileUser._id?.toString();
+  const isFollowing = currentUser?.following?.some(id => id.toString() === profileUser._id?.toString()) || false;
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
       <div className="text-center mb-8">
         <div className="relative w-32 h-32 mx-auto mb-4">
           <Image
-            src={clerkUser.imageUrl}
+            src={profileClerkUser.imageUrl}
             alt={profileUser.username}
             fill
             className="rounded-full object-cover"
@@ -59,26 +61,27 @@ const Profile = async ({ params }: { params: { profile: string[] } }) => {
           <span>·</span>
           <span>{profileUser.following.length} Following</span>
         </div>
-        {isOwnProfile ? (
+        {!isOwnProfile && currentUser && (
+          <FollowButton
+            currentUserId={currentUser._id?.toString() || ''}
+            profileUserId={profileUser._id?.toString() || ''}
+            isFollowing={isFollowing}
+          />
+        )}
+        {isOwnProfile && (
           <Link
             href="/profile/edit"
             className="inline-block px-6 py-2 rounded-full bg-gray-200 text-gray-800 hover:bg-gray-300 transition-colors"
           >
             Edit Profile
           </Link>
-        ) : (
-          currentUser && (
-            <div>Hi</div>
-           
-          )
         )}
       </div>
 
-      {/* Posts Section */}
       <div className="mt-12">
         <h2 className="text-2xl font-bold mb-6">Posts</h2>
         <div className="divide-y divide-gray-200">
-          {posts.filter(post => post.author._id.toString() === profileUser._id.toString()).map((post) => (
+          {posts.filter(post => post.author.toString() === profileUser._id.toString()).map((post) => (
             <BlogCard key={post._id.toString()} post={post} />
           ))}
         </div>

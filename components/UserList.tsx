@@ -9,7 +9,7 @@ import { motion } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 
 interface UserListProps {
-    users: IUser[];
+    users: (IUser & { isFollowing: boolean })[];
     currentUserId: string;
 }
 
@@ -23,23 +23,15 @@ export default function UserList({ users, currentUserId }: UserListProps) {
     }, [users]);
 
     const handleFollowUpdate = (profileUserId: string, isFollowing: boolean) => {
-        setLocalUsers(prevUsers =>
-            prevUsers.map(user =>
-                user._id.toString() === profileUserId
-                    ? {
-                        ...user,
-                        followers: isFollowing
-                            ? [...user.followers, new ObjectId(currentUserId)] // Convert to ObjectId
-                            : user.followers.filter(
-                                id => id.toString() !== currentUserId // Ensure type compatibility
-                            ),
-                    }
+        setLocalUsers(prevUsers => 
+            prevUsers.map(user => 
+                user.clerkId === profileUserId
+                    ? { ...user, isFollowing }
                     : user
             )
         );
         router.refresh();
     };
-
 
     return (
         <div className="bg-white rounded-lg border border-gray-200 p-4">
@@ -47,13 +39,13 @@ export default function UserList({ users, currentUserId }: UserListProps) {
             <div className="space-y-4">
                 {localUsers.slice(0, visibleUsers).map((user, index) => (
                     <motion.div
-                        key={user._id.toString()}
+                        key={user.clerkId}
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.3, delay: index * 0.1 }}
                         className="flex items-start gap-3"
                     >
-                        <Link href={`/profile/${user._id}`} className="shrink-0">
+                        <Link href={`/profile/${user.clerkId}`} className="shrink-0">
                             <Image
                                 src={user.photo || '/placeholder.svg?height=40&width=40'}
                                 alt={user.username}
@@ -63,7 +55,7 @@ export default function UserList({ users, currentUserId }: UserListProps) {
                             />
                         </Link>
                         <div className="flex-1 min-w-0">
-                            <Link href={`/profile/${user._id}`} className="block">
+                            <Link href={`/profile/${user.clerkId}`} className="block">
                                 <h3 className="font-medium truncate hover:underline">
                                     {user.username}
                                 </h3>
@@ -72,11 +64,11 @@ export default function UserList({ users, currentUserId }: UserListProps) {
                                 </p>
                             </Link>
                         </div>
-                        {user._id.toString() !== currentUserId && (
+                        {user.clerkId !== currentUserId && (
                             <FollowButton
                                 currentUserId={currentUserId}
-                                profileUserId={user._id.toString()}
-                                isFollowing={user.followers.some(id => id.toString() === currentUserId)}
+                                profileUserId={user.clerkId}
+                                isFollowing={user.isFollowing}
                                 onFollowUpdate={handleFollowUpdate}
                             />
                         )}

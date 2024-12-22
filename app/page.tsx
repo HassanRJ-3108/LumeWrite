@@ -1,21 +1,31 @@
 import { getPosts } from "@/actions/post.actions"
-import { getAllUsers } from "@/actions/user.actions"
+import { getAllUsers, getCurrentUser } from "@/actions/user.actions"
 import BlogCard from "@/components/BlogCard"
 import UserList from "@/components/UserList"
 import { auth } from "@clerk/nextjs/server"
 import Link from "next/link"
 import { IUser } from "@/types/user"
-import { IPost } from "@/types/post"
+import { ISerializedPost } from "@/types/post"
 
 export default async function Home() {
   const { userId } = auth()
-  const [posts, { users }] = await Promise.all([
+  if (!userId) {
+    return <div>Please sign in to view this page.</div>
+  }
+
+  const [posts, usersData, currentUser] = await Promise.all([
     getPosts(),
-    getAllUsers()
+    getAllUsers({ excludeUserId: userId, currentUserId: userId }),
+    getCurrentUser(userId)
   ])
 
-  // Filter out the current user from the users list
-  const otherUsers = users.filter((user: IUser | null) => user?.clerkId !== userId).filter((user): user is IUser => user !== null)
+  if (!currentUser) {
+    return <div>Error: Current user not found.</div>
+  }
+
+  const otherUsers = usersData.users.filter((user): user is IUser & { isFollowing: boolean } => 
+    user.clerkId !== userId
+  );
 
   return (
     <main className="min-h-screen py-8">
@@ -25,8 +35,8 @@ export default async function Home() {
           <div className="flex-1">
             <h1 className="text-3xl font-bold mb-8">Latest Posts</h1>
             <div className="divide-y divide-gray-200">
-              {posts.map((post: IPost) => (
-                <BlogCard key={post._id.toString()} post={post} />
+              {posts.map((post: ISerializedPost) => (
+                <BlogCard key={post._id} post={post} />
               ))}
             </div>
           </div>
@@ -34,7 +44,7 @@ export default async function Home() {
           {/* Right sidebar - Fixed position */}
           <div className="lg:w-80 shrink-0">
             <div className="lg:sticky lg:top-8 space-y-6">
-              <UserList users={otherUsers} currentUserId={userId ?? ''} />
+              <UserList users={otherUsers} currentUserId={userId} />
               
               {/* Additional sidebar content */}
               <div className="bg-gray-50 rounded-lg p-4">

@@ -4,9 +4,45 @@ import { connect } from "@/db";
 import Post from "@/modals/post.modal";
 import User from "@/modals/user.modal";
 import { revalidatePath } from "next/cache";
-import { IPost, PostCreateData } from "@/types/post";
+import { IPost, ISerializedPost, PostCreateData } from "@/types/post";
 
-
+// Add this helper function at the top
+function serializePost(post: any) {
+  return {
+    _id: post._id.toString(),
+    title: post.title,
+    content: post.content,
+    image: post.image,
+    author: typeof post.author === 'object' ? {
+      _id: post.author._id.toString(),
+      clerkId: post.author.clerkId,
+      email: post.author.email,
+      username: post.author.username,
+      firstName: post.author.firstName,
+      lastName: post.author.lastName,
+      photo: post.author.photo,
+      bio: post.author.bio,
+      followers: post.author.followers?.map((id: any) => id.toString()) || [],
+      following: post.author.following?.map((id: any) => id.toString()) || [],
+      createdAt: post.author.createdAt?.toISOString(),
+      updatedAt: post.author.updatedAt?.toISOString()
+    } : post.author.toString(),
+    likes: post.likes?.map((id: any) => id.toString()) || [],
+    comments: post.comments?.map((comment: any) => ({
+      _id: comment._id.toString(),
+      content: comment.content,
+      user: typeof comment.user === 'object' ? {
+        _id: comment.user._id.toString(),
+        username: comment.user.username,
+        photo: comment.user.photo,
+        // Add other user fields as needed
+      } : comment.user.toString(),
+      createdAt: comment.createdAt?.toISOString()
+    })) || [],
+    createdAt: post.createdAt?.toISOString(),
+    updatedAt: post.updatedAt?.toISOString()
+  };
+}
 
 export async function updatePost(postId: string, userId: string, updateData: Partial<PostCreateData>): Promise<IPost | null> {
   try {
@@ -101,7 +137,7 @@ export async function createPost(clerkUserId: string, postData: PostCreateData):
   }
 }
 
-export async function getPostById(postId: string): Promise<IPost | null> {
+export async function getPostById(postId: string): Promise<ISerializedPost | null> {
   try {
     await connect();
     const post = await Post.findById(postId)
@@ -111,8 +147,15 @@ export async function getPostById(postId: string): Promise<IPost | null> {
         select: 'username photo bio clerkId followers following'
       })
       .populate('likes', 'username')
-      .populate('comments.user', 'username photo');
-    return post ? JSON.parse(JSON.stringify(post)) : null;
+      .populate({
+        path: 'comments.user',
+        model: User,
+        select: 'username photo'
+      });
+
+    if (!post) return null;
+    
+    return serializePost(post);
   } catch (error) {
     console.error("Error fetching post:", error);
     throw error;
@@ -166,7 +209,7 @@ export async function addComment(userId: string, postId: string, content: string
   }
 }
 
-export async function getPosts(page = 1, limit = 10): Promise<IPost[]> {
+export async function getPosts(page = 1, limit = 10): Promise<ISerializedPost[]> {
   try {
     await connect();
     const posts = await Post.find()
@@ -176,11 +219,16 @@ export async function getPosts(page = 1, limit = 10): Promise<IPost[]> {
       .populate({
         path: 'author',
         model: User,
-        select: 'username photo bio clerkId followers following'
+        select: 'username photo bio clerkId followers following email firstName lastName'
       })
-      .populate('likes', 'username')
-      .populate('comments.user', 'username photo');
-    return JSON.parse(JSON.stringify(posts));
+      .populate('likes')
+      .populate({
+        path: 'comments.user',
+        model: User,
+        select: 'username photo'
+      });
+    
+    return posts.map(post => serializePost(post));
   } catch (error) {
     console.error("Error fetching posts:", error);
     throw error;

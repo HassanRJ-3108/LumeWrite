@@ -31,7 +31,24 @@ function isValidObjectId(id: string): boolean {
 
 // Helper function to serialize user data
 function serializeUser(user: any): IUser | null {
-  return user ? JSON.parse(JSON.stringify(user)) : null;
+  if (!user) return null;
+  
+  const serialized = {
+    _id: user._id.toString(),
+    clerkId: user.clerkId,
+    email: user.email,
+    username: user.username,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    photo: user.photo,
+    bio: user.bio,
+    followers: user.followers?.map((id: any) => id.toString()) || [],
+    following: user.following?.map((id: any) => id.toString()) || [],
+    createdAt: user.createdAt?.toISOString(),
+    updatedAt: user.updatedAt?.toISOString()
+  };
+  
+  return serialized;
 }
 
 // Create a new user
@@ -79,11 +96,16 @@ export async function getUserById(
   try {
     await connectDB();
 
+    // If it's a Clerk ID, use getUserByClerkId instead
+    if (userId.startsWith('user_')) {
+      return getUserByClerkId(userId, options);
+    }
+
     if (!isValidObjectId(userId)) {
       throw new UserActionError('Invalid user ID', 'INVALID_ID');
     }
 
-    let query = User.findById(new Types.ObjectId(userId));
+    let query = User.findById(userId);
 
     if (options.populateFollowers) {
       query = query.populate('followers');
@@ -188,44 +210,42 @@ export async function followUser(currentUserId: string, userToFollowId: string) 
   try {
     await connectDB();
 
-    if (!isValidObjectId(currentUserId) || !isValidObjectId(userToFollowId)) {
-      throw new UserActionError('Invalid user ID', 'INVALID_ID');
-    }
-
-    const currentUserObjectId = new Types.ObjectId(currentUserId);
-    const userToFollowObjectId = new Types.ObjectId(userToFollowId);
-
+    // Find users by clerkId
     const [currentUser, userToFollow] = await Promise.all([
-      User.findById(currentUserObjectId),
-      User.findById(userToFollowObjectId)
+      User.findOne({ clerkId: currentUserId }),
+      User.findOne({ clerkId: userToFollowId })
     ]);
 
     if (!currentUser || !userToFollow) {
       throw new UserActionError('User not found', 'USER_NOT_FOUND');
     }
 
-    if (currentUser.following.includes(userToFollowObjectId)) {
+    // Check if already following
+    if (currentUser.following.includes(userToFollow._id)) {
       throw new UserActionError('Already following this user', 'ALREADY_FOLLOWING');
     }
 
+    // Update both users
     await Promise.all([
-      User.findByIdAndUpdate(currentUserObjectId,
-        { $addToSet: { following: userToFollowObjectId } }
+      User.findByIdAndUpdate(currentUser._id, 
+        { $addToSet: { following: userToFollow._id } }
       ),
-      User.findByIdAndUpdate(userToFollowObjectId,
-        { $addToSet: { followers: currentUserObjectId } }
+      User.findByIdAndUpdate(userToFollow._id, 
+        { $addToSet: { followers: currentUser._id } }
       )
     ]);
 
+    // Revalidate paths
     revalidatePath('/');
     revalidatePath('/profile');
     revalidatePath(`/profile/${currentUserId}`);
     revalidatePath(`/profile/${userToFollowId}`);
 
+    return { success: true };
   } catch (error) {
     console.error("Error following user:", error);
     if (error instanceof UserActionError) throw error;
-    throw new UserActionError('Failed to follow user', 'FOLLOW_USER_ERROR');
+    throw new UserActionError('Failed to follow user', 'FOLLOW_ERROR');
   }
 }
 
@@ -233,99 +253,118 @@ export async function unfollowUser(currentUserId: string, userToUnfollowId: stri
   try {
     await connectDB();
 
-    if (!isValidObjectId(currentUserId) || !isValidObjectId(userToUnfollowId)) {
-      throw new UserActionError('Invalid user ID', 'INVALID_ID');
-    }
-
-    const currentUserObjectId = new Types.ObjectId(currentUserId);
-    const userToUnfollowObjectId = new Types.ObjectId(userToUnfollowId);
-
+    // Find users by clerkId
     const [currentUser, userToUnfollow] = await Promise.all([
-      User.findById(currentUserObjectId),
-      User.findById(userToUnfollowObjectId)
+      User.findOne({ clerkId: currentUserId }),
+      User.findOne({ clerkId: userToUnfollowId })
     ]);
 
     if (!currentUser || !userToUnfollow) {
       throw new UserActionError('User not found', 'USER_NOT_FOUND');
     }
 
-    if (!currentUser.following.includes(userToUnfollowObjectId)) {
+    // Check if not following
+    if (!currentUser.following.includes(userToUnfollow._id)) {
       throw new UserActionError('Not following this user', 'NOT_FOLLOWING');
     }
 
+    // Update both users
     await Promise.all([
-      User.findByIdAndUpdate(currentUserObjectId,
-        { $pull: { following: userToUnfollowObjectId } }
+      User.findByIdAndUpdate(currentUser._id,
+        { $pull: { following: userToUnfollow._id } }
       ),
-      User.findByIdAndUpdate(userToUnfollowObjectId,
-        { $pull: { followers: currentUserObjectId } }
+      User.findByIdAndUpdate(userToUnfollow._id,
+        { $pull: { followers: currentUser._id } }
       )
     ]);
 
+    // Revalidate paths
     revalidatePath('/');
     revalidatePath('/profile');
     revalidatePath(`/profile/${currentUserId}`);
     revalidatePath(`/profile/${userToUnfollowId}`);
 
+    return { success: true };
   } catch (error) {
     console.error("Error unfollowing user:", error);
     if (error instanceof UserActionError) throw error;
-    throw new UserActionError('Failed to unfollow user', 'UNFOLLOW_USER_ERROR');
+    throw new UserActionError('Failed to unfollow user', 'UNFOLLOW_ERROR');
   }
 }
 
-// ... (rest of the file remains unchanged)
+export async function getUpdatedUserData(userId: string) {
+  try {
+    await connectDB();
+    const user = await User.findOne({ clerkId: userId }).lean();
+    if (!user) {
+      throw new Error('User not found');
+    }
+    return user;
+  } catch (error) {
+    console.error("Error getting updated user data:", error);
+    throw error;
+  }
+}
 
 
 
-// Get all users with pagination and search
+
 export async function getAllUsers(options: {
   page?: number;
   limit?: number;
   search?: string;
   excludeUserId?: string;
+  currentUserId?: string;
 } = {}) {
   try {
     await connectDB();
-
     const {
       page = 1,
       limit = 10,
       search = '',
-      excludeUserId
+    
+      currentUserId
     } = options;
 
-    let query: any = {};
-
-    // Add search condition if search string is provided
+    const query: any = {};
     if (search) {
-      query = {
-        $or: [
-          { username: { $regex: search, $options: 'i' } },
-          { bio: { $regex: search, $options: 'i' } }
-        ]
-      };
+      query.$or = [
+        { username: { $regex: search, $options: 'i' } },
+        { bio: { $regex: search, $options: 'i' } },
+      ];
+    }
+    // ... existing code ...
+    let excludeUserId; // Change from const to let
+    if (options.excludeUserId) {
+      excludeUserId = options.excludeUserId; // Assign the value from options
+      if (!Types.ObjectId.isValid(excludeUserId)) {
+        console.warn(`Invalid excludeUserId provided: ${excludeUserId}. It will be ignored.`);
+        excludeUserId = undefined; // Ignore the invalid excludeUserId
+      } else {
+        query._id = { $ne: new Types.ObjectId(excludeUserId) };
+      }
+    }
+    // ... existing code ...
+    const total = await User.countDocuments(query);
+    const users = await User.find(query)
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .lean() as unknown[];
+
+    let currentUser: IUser | null = null;
+    if (currentUserId) {
+      currentUser = await User.findOne({ clerkId: currentUserId }).lean() as IUser | null;
     }
 
-    // Exclude specific user if provided
-    if (excludeUserId && isValidObjectId(excludeUserId)) {
-      query._id = { $ne: new Types.ObjectId(excludeUserId) };
-    }
-
-    const skip = (page - 1) * limit;
-
-    const [users, total] = await Promise.all([
-      User.find(query)
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .populate('followers')
-        .populate('following'),
-      User.countDocuments(query)
-    ]);
+    const usersWithFollowStatus = users.map((user: any) => ({
+      ...serializeUser(user),
+      isFollowing: currentUser ? currentUser.following.some(
+        (id: any) => id.toString() === user._id.toString()
+      ) : false
+    }));
 
     return {
-      users: users.map(user => serializeUser(user)),
+      users: usersWithFollowStatus,
       pagination: {
         total,
         pages: Math.ceil(total / limit),
@@ -335,7 +374,18 @@ export async function getAllUsers(options: {
     };
   } catch (error) {
     console.error("Error fetching users:", error);
+    if (error instanceof UserActionError) throw error;
     throw new UserActionError('Failed to fetch users', 'FETCH_USERS_ERROR');
   }
 }
 
+export async function getCurrentUser(clerkId: string): Promise<IUser | null> {
+  try {
+    await connectDB();
+    const user = await User.findOne({ clerkId }).lean() as IUser | null;
+    return user;
+  } catch (error) {
+    console.error("Error fetching current user:", error);
+    throw new UserActionError('Failed to fetch current user', 'FETCH_CURRENT_USER_ERROR');
+  }
+}

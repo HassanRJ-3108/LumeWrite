@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useUser } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
 import { Heart, MessageCircle, MoreHorizontal, Edit, Trash } from 'lucide-react'
-import { IPost } from '@/types/post'
+import { ISerializedPost } from "@/types/post";
 import { IUser } from '@/types/user'
 import { likePost, unlikePost, deletePost } from '@/actions/post.actions'
 import { 
@@ -21,7 +21,7 @@ import { segoeUI, segoeui1} from '@/app/layout'
 
 
 interface BlogCardProps {
-  post: IPost
+  post: ISerializedPost
 }
 
 export default function BlogCard({ post }: BlogCardProps) {

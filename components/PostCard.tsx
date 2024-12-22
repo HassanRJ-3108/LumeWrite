@@ -3,7 +3,7 @@
 import { likePost, unlikePost, addComment, deletePost } from "@/actions/post.actions";
 import { useState, useEffect } from "react";
 import { useUser } from "@clerk/nextjs";
-import { IPost, IComment } from "@/types/post";
+import { ISerializedPost, ISerializedComment } from "@/types/post";
 import { IUser } from "@/types/user";
 import Link from "next/link";
 import Image from "next/image";
@@ -22,17 +22,66 @@ import { sourceSerif, sohne } from '@/app/layout'
 
 
 interface PostCardProps {
-  post: IPost;
+  post: ISerializedPost;
+  currentUserId: string;
 }
 
-export default function PostCard({ post }: PostCardProps) {
+export default function PostCard({ post, currentUserId }: PostCardProps) {
   const [comment, setComment] = useState("");
   const { user } = useUser();
-  const [isLiked, setIsLiked] = useState(post.likes.some(like => like.toString() === user?.id));
+  const [isLiked, setIsLiked] = useState(post.likes.some((like: string | { _id: string }) => 
+    typeof like === 'string' 
+      ? like === user?.id 
+      : like._id === user?.id
+  ));
   const [likesCount, setLikesCount] = useState(post.likes.length);
-  const [author, setAuthor] = useState(post.author as IUser);
+  const [author, setAuthor] = useState<IUser | null>(
+    typeof post.author === 'string' ? null : post.author as IUser
+  );
+  const [isFollowing, setIsFollowing] = useState(false);
   const router = useRouter();
   const [isDeleting, setIsDeleting] = useState(false);
+
+  useEffect(() => {
+    const checkFollowStatus = async () => {
+      if (author?.clerkId && currentUserId) {
+        try {
+          const response = await fetch(`/api/follow-status?userId=${currentUserId}&profileId=${author.clerkId}`);
+          const data = await response.json();
+          setIsFollowing(data.isFollowing);
+        } catch (error) {
+          console.error('Error checking follow status:', error);
+        }
+      }
+    };
+    checkFollowStatus();
+  }, [author?.clerkId, currentUserId]);
+
+  const handleFollowUpdate = async (profileUserId: string, newIsFollowing: boolean) => {
+    setIsFollowing(newIsFollowing);
+    router.refresh();
+
+    const event = new CustomEvent('followStatusChange', {
+      detail: { profileUserId, isFollowing: newIsFollowing }
+    });
+    window.dispatchEvent(event);
+  };
+
+  useEffect(() => {
+    const handleFollowStatusChange = (event: CustomEvent<{ profileUserId: string; isFollowing: boolean }>) => {
+      if (author?.clerkId && event.detail.profileUserId === author.clerkId) {
+        setIsFollowing(event.detail.isFollowing);
+      }
+    };
+
+    window.addEventListener('followStatusChange', handleFollowStatusChange as EventListener);
+    return () => window.removeEventListener('followStatusChange', handleFollowStatusChange as EventListener);
+  }, [author?.clerkId]);
+
+  // Early return if no author
+  if (!author) {
+    return null;
+  }
 
   const handleLike = async () => {
     if (user?.id) {
@@ -81,7 +130,7 @@ export default function PostCard({ post }: PostCardProps) {
       <header className="mb-12">
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-4">
-            <Link href={`/profile/${author._id}`}>
+            <Link href={`/profile/${author.clerkId}`}>
               <div className="relative w-12 h-12">
                 <Image
                   src={author.photo || "/placeholder.svg"}
@@ -93,7 +142,7 @@ export default function PostCard({ post }: PostCardProps) {
               </div>
             </Link>
             <div className="flex flex-col">
-              <Link href={`/profile/${author._id}`}>
+              <Link href={`/profile/${author.clerkId}`}>
                 <span className="font-semibold text-gray-900 hover:underline">
                   {author.username}
                 </span>
@@ -110,13 +159,12 @@ export default function PostCard({ post }: PostCardProps) {
               </div>
             </div>
           </div>
-          {user && user.id !== author.clerkId && (
+          {currentUserId && currentUserId !== author.clerkId && (
             <FollowButton
-              currentUserId={user.id}
-              profileUserId={author._id.toString()}
-              isFollowing={author.followers?.some(
-                follower => follower.toString() === user.id
-              )}
+              currentUserId={currentUserId}
+              profileUserId={author.clerkId}
+              isFollowing={isFollowing}
+              onFollowUpdate={handleFollowUpdate}
             />
           )}
         </div>
@@ -172,7 +220,7 @@ export default function PostCard({ post }: PostCardProps) {
       {/* Author Section */}
       <section className="mb-16">
         <div className="flex items-start gap-6">
-          <Link href={`/profile/${author._id}`}>
+          <Link href={`/profile/${author.clerkId}`}>
             <div className="relative w-16 h-16">
               <Image
                 src={author.photo || "/placeholder.svg"}
@@ -184,7 +232,7 @@ export default function PostCard({ post }: PostCardProps) {
             </div>
           </Link>
           <div>
-            <Link href={`/profile/${author._id}`}>
+            <Link href={`/profile/${author.clerkId}`}>
               <h3 className="text-xl font-semibold text-gray-900 hover:underline mb-2">
                 Written by {author.username}
               </h3>
@@ -227,8 +275,8 @@ export default function PostCard({ post }: PostCardProps) {
         )}
 
         <div className="space-y-8">
-          {post.comments.map((comment: IComment, index: number) => (
-            <div key={index} className="flex items-start gap-4">
+          {post.comments.map((comment: ISerializedComment, index: number) => (
+            <div key={comment._id} className="flex items-start gap-4">
               <Link href={`/profile/${(comment.user as IUser)._id}`}>
                 <div className="relative w-10 h-10 flex-shrink-0">
                   <Image

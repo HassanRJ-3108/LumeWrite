@@ -1,9 +1,7 @@
 'use client'
 
 import { followUser, unfollowUser } from "@/actions/user.actions";
-import { useState } from "react";
-import { toast } from "react-hot-toast";
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from "react";
 
 interface FollowButtonProps {
   currentUserId: string;
@@ -12,57 +10,57 @@ interface FollowButtonProps {
   onFollowUpdate?: (profileUserId: string, isFollowing: boolean) => void;
 }
 
-export default function FollowButton({ currentUserId, profileUserId, isFollowing: initialIsFollowing, onFollowUpdate }: FollowButtonProps) {
-  const [following, setFollowing] = useState(initialIsFollowing);
-  const [isHovered, setIsHovered] = useState(false);
-  const [isPending, setIsPending] = useState(false);
-  const router = useRouter();
+export default function FollowButton({ 
+  currentUserId, 
+  profileUserId, 
+  isFollowing: initialIsFollowing,
+  onFollowUpdate 
+}: FollowButtonProps) {
+  const [isFollowing, setIsFollowing] = useState(initialIsFollowing);
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    setIsFollowing(initialIsFollowing);
+  }, [initialIsFollowing]);
 
   const handleFollow = async () => {
-    setIsPending(true);
+    if (isLoading) return;
+    
+    setIsLoading(true);
     try {
-      if (following) {
+      if (isFollowing) {
         await unfollowUser(currentUserId, profileUserId);
-        toast.success("Unfollowed successfully");
       } else {
         await followUser(currentUserId, profileUserId);
-        toast.success("Followed successfully");
       }
-      setFollowing(!following);
-      if (onFollowUpdate) {
-        onFollowUpdate(profileUserId, !following);
-      }
-      router.refresh();
+      
+      const newIsFollowing = !isFollowing;
+      setIsFollowing(newIsFollowing);
+      onFollowUpdate?.(profileUserId, newIsFollowing);
     } catch (error: any) {
-      console.error('Error following/unfollowing user:', error);
-      toast.error(error.message || "Failed to update follow status. Please try again.");
+      if (error.message === 'Already following this user') {
+        setIsFollowing(true);
+      } else if (error.message === 'Not following this user') {
+        setIsFollowing(false);
+      } else {
+        console.error('Follow action failed:', error);
+      }
     } finally {
-      setIsPending(false);
+      setIsLoading(false);
     }
   };
 
   return (
     <button
       onClick={handleFollow}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      disabled={isPending}
-      className={`
-        px-3 py-1 text-sm font-medium rounded-full transition-all
-        ${following 
-          ? 'border border-gray-300 text-gray-700 hover:border-red-500 hover:text-red-500 hover:bg-red-50' 
-          : 'border border-gray-700 text-gray-900 hover:bg-gray-100'
-        }
-        ${isPending ? 'opacity-50 cursor-not-allowed' : ''}
-      `}
+      disabled={isLoading}
+      className={`px-4 py-1 rounded-full text-sm font-medium transition-colors ${
+        isFollowing
+          ? 'bg-gray-200 text-gray-800 hover:bg-gray-300'
+          : 'bg-green-600 text-white hover:bg-green-700'
+      } disabled:opacity-50`}
     >
-      {isPending 
-        ? 'Loading...' 
-        : (following 
-            ? (isHovered ? 'Unfollow' : 'Following') 
-            : 'Follow'
-          )
-      }
+      {isFollowing ? 'Following' : 'Follow'}
     </button>
   );
 }

@@ -9,11 +9,13 @@ export interface IUser {
   lastName: string;
   photo: string;
   bio?: string;
+  about?: string;
   followers: Types.ObjectId[];
   following: Types.ObjectId[];
+  savedPosts: Types.ObjectId[];
   createdAt: Date;
   updatedAt: Date;
 }
 
-export type UserUpdateData = Partial<Pick<IUser, 'bio' | 'photo' | 'username'>>;
+export type UserUpdateData = Partial<Pick<IUser, 'bio' | 'photo' | 'username' | 'about'>>;
 

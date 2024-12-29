@@ -6,6 +6,7 @@ import Navbar from "@/components/Navbar";
 const inter = Inter({ subsets: ["latin"] });
 import { merriweather } from '@/app/ui/fonts';
 import localFont from 'next/font/local';
+import Loader from '@/components/Loader';
 
 export const segoeUI = localFont({
   src: './fonts/segoeui.ttf',
@@ -43,7 +44,7 @@ export default function RootLayout({
         <body className={`${inter.className} ${merriweather.className} ${sohne.className} ${sourceSerif.className}  ${segoeui1.className}`}>
           <ClerkLoading>
             <div className="flex items-center justify-center h-screen text-2xl">
-              LOADING...
+              <Loader/>
             </div>
           </ClerkLoading>
           <ClerkLoaded>

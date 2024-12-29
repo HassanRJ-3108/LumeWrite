@@ -5,6 +5,60 @@ import Post from "@/modals/post.modal";
 import User from "@/modals/user.modal";
 import { revalidatePath } from "next/cache";
 import { IPost, ISerializedPost, PostCreateData } from "@/types/post";
+import { clerkClient } from "@clerk/clerk-sdk-node";
+
+
+
+export async function savePost(userId: string, postId: string) {
+  try {
+    await connect();
+    const user = await User.findOne({ clerkId: userId });
+    if (!user) {
+      throw new Error("User not found");
+    }
+    await User.findByIdAndUpdate(user._id, { $addToSet: { savedPosts: postId } });
+    
+    // Update Clerk user metadata
+    const clerkUser = await clerkClient.users.getUser(userId);
+    const savedPosts: string[] = clerkUser.publicMetadata.savedPosts as string[] || [];
+    await clerkClient.users.updateUser(userId, {
+      publicMetadata: { ...clerkUser.publicMetadata, savedPosts: [...savedPosts, postId] },
+    });
+
+    revalidatePath('/');
+    revalidatePath(`/profile/${user._id}`);
+    return { success: true };
+  } catch (error) {
+    console.error("Error saving post:", error);
+    throw error;
+  }
+}
+
+export async function unsavePost(userId: string, postId: string) {
+  try {
+    await connect();
+    const user = await User.findOne({ clerkId: userId });
+    if (!user) {
+      throw new Error("User not found");
+    }
+    await User.findByIdAndUpdate(user._id, { $pull: { savedPosts: postId } });
+    
+    // Update Clerk user metadata
+    const clerkUser = await clerkClient.users.getUser(userId);
+    const savedPosts: string[] = clerkUser.publicMetadata.savedPosts as string[] || [];
+    await clerkClient.users.updateUser(userId, {
+      publicMetadata: { ...clerkUser.publicMetadata, savedPosts: savedPosts.filter((id: string) => id !== postId) },
+    });
+
+    revalidatePath('/');
+    revalidatePath(`/profile/${user._id}`);
+    return { success: true };
+  } catch (error) {
+    console.error("Error unsaving post:", error);
+    throw error;
+  }
+}
+
 
 // Add this helper function at the top
 function serializePost(post: any) {

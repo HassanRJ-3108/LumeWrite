@@ -321,12 +321,13 @@ function FormattedContent({ content }: { content: string }) {
     <div
       dangerouslySetInnerHTML={{ __html: content }}
       className={`${sourceSerif.className} text-xl prose prose-lg max-w-none mb-12
+        text-gray-700 leading-relaxed
         [&_pre]:bg-gray-50 [&_pre]:border [&_pre]:border-gray-200
         [&_pre]:rounded-md [&_pre]:p-4 [&_pre]:overflow-x-auto [&_pre]:mb-6
         [&_pre]:text-sm
-      [&_code]:bg-gray-50 [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:mb-6
+        [&_code]:bg-gray-50 [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:mb-6
         [&_code]:text-lg
-        [&_p]:mb-6 [&_h2]:mt-12 [&_h2]:mb-6 [&_h3]:mt-8 [&_h3]:mb-4
+        [&_p]:mb-6 [&_p]:leading-relaxed [&_h2]:mt-12 [&_h2]:mb-6 [&_h3]:mt-8 [&_h3]:mb-4
         [&_ul]:my-6 [&_ol]:my-6 [&_li]:mb-2
         [&_blockquote]:border-l-4 [&_blockquote]:border-gray-200 [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:mb-6
         [&_img]:rounded-lg [&_img]:my-8

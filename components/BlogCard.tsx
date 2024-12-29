@@ -6,10 +6,10 @@ import Image from 'next/image'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useUser } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
-import { Heart, MessageCircle, MoreHorizontal, Edit, Trash } from 'lucide-react'
+import { Heart, MessageCircle, MoreHorizontal, Edit, Trash, Bookmark } from 'lucide-react'
 import { ISerializedPost } from "@/types/post";
 import { IUser } from '@/types/user'
-import { likePost, unlikePost, deletePost } from '@/actions/post.actions'
+import { likePost, unlikePost, deletePost, savePost, unsavePost } from '@/actions/post.actions'
 import { 
   DropdownMenu,
   DropdownMenuContent,
@@ -19,13 +19,12 @@ import {
 import { inter } from '@/app/ui/fonts'
 import { segoeUI, segoeui1} from '@/app/layout'
 
-
 interface BlogCardProps {
   post: ISerializedPost
 }
 
 export default function BlogCard({ post }: BlogCardProps) {
-  const author = post.author as IUser
+  const author = post.author as IUser | null
   const { user } = useUser()
   const router = useRouter()
   const [isDeleting, setIsDeleting] = useState(false)
@@ -33,6 +32,13 @@ export default function BlogCard({ post }: BlogCardProps) {
   const [postImage, setPostImage] = useState<string | null>(null)
   const [isLiked, setIsLiked] = useState(post.likes.some(like => like.toString() === user?.id))
   const [likesCount, setLikesCount] = useState(post.likes.length)
+  const [isSaved, setIsSaved] = useState(false)
+
+  useEffect(() => {
+    if (user) {
+      setIsSaved(Array.isArray(user.publicMetadata.savedPosts) && user.publicMetadata.savedPosts.includes(post._id.toString()))
+    }
+  }, [user, post._id])
 
   const handleLike = async () => {
     if (user?.id) {
@@ -44,6 +50,18 @@ export default function BlogCard({ post }: BlogCardProps) {
         setLikesCount(prev => prev + 1)
       }
       setIsLiked(!isLiked)
+    }
+  }
+
+  const handleSave = async () => {
+    if (user?.id) {
+      if (isSaved) {
+        await unsavePost(user.id, post._id.toString())
+      } else {
+        await savePost(user.id, post._id.toString())
+      }
+      setIsSaved(!isSaved)
+      router.refresh()
     }
   }
   
@@ -93,22 +111,26 @@ export default function BlogCard({ post }: BlogCardProps) {
     >
       <div className="max-w-3xl mx-auto px-4">
         <div className="flex items-center gap-3 mb-4">
-          <Link 
-            href={`/profile/${author._id}`} 
-            className="shrink-0 hover:opacity-80 transition-opacity relative w-8 h-8 rounded-full overflow-hidden"
-          >
-            <Image
-              src={author.photo || `https://api.dicebear.com/6.x/initials/svg?seed=${author.username}`}
-              alt={author.username}
-              fill
-              className="object-cover"
-              sizes="32px"
-            />
-          </Link>
-          <div className="flex items-center gap-2 text-sm">
-            <Link href={`/profile/${author._id}`} className="font-medium text-gray-900 hover:underline">
-              {author.username}
+          {author && (
+            <Link 
+              href={`/profile/${author._id}`} 
+              className="shrink-0 hover:opacity-80 transition-opacity relative w-8 h-8 rounded-full overflow-hidden"
+            >
+              <Image
+                src={author.photo || `https://api.dicebear.com/6.x/initials/svg?seed=${author.username}`}
+                alt={author.username}
+                fill
+                className="object-cover"
+                sizes="32px"
+              />
             </Link>
+          )}
+          <div className="flex items-center gap-2 text-sm">
+            {author && (
+              <Link href={`/profile/${author._id}`} className="font-medium text-gray-900 hover:underline">
+                {author.username}
+              </Link>
+            )}
             <span className="text-gray-500">·</span>
             <time className="text-gray-500" dateTime={new Date(post.createdAt).toISOString()}>
               {new Date(post.createdAt).toLocaleDateString('en-US', {
@@ -145,6 +167,15 @@ export default function BlogCard({ post }: BlogCardProps) {
                   <MessageCircle className="w-5 h-5" />
                   <span className="text-sm">{post.comments.length}</span>
                 </button>
+                <button
+                  onClick={handleSave}
+                  className="flex items-center gap-1.5 text-gray-600 hover:text-gray-900 transition-colors"
+                >
+                  <Bookmark
+                    className={`w-5 h-5 ${isSaved ? 'fill-gray-900 text-gray-900' : 'stroke-current'}`}
+                  />
+                  <span className="text-sm">Save</span>
+                </button>
                 <span className="text-sm text-gray-500 flex items-center gap-1">
                   <span>{readingTime}</span>
                   min read
@@ -152,7 +183,7 @@ export default function BlogCard({ post }: BlogCardProps) {
               </div>
 
               <div className="flex items-center gap-1">
-                {user?.id === author.clerkId && (
+                {author && user?.id === author.clerkId && (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <button 

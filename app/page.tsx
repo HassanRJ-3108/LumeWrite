@@ -9,9 +9,6 @@ import { ISerializedPost } from "@/types/post"
 
 export default async function Home() {
   const { userId } = auth()
-  if (!userId) {
-    return <div>Please sign in to view this page.</div>
-  }
 
   const [posts, usersData, currentUser] = await Promise.all([
     getPosts(),
@@ -19,10 +16,7 @@ export default async function Home() {
     getCurrentUser(userId)
   ])
 
-  if (!currentUser) {
-    return <div>Error: Current user not found.</div>
-  }
-
+ 
   const otherUsers = usersData.users.filter((user): user is IUser & { isFollowing: boolean } => 
     user.clerkId !== userId
   );

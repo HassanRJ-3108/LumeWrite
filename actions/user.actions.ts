@@ -32,7 +32,7 @@ function isValidObjectId(id: string): boolean {
 // Helper function to serialize user data
 function serializeUser(user: any): IUser | null {
   if (!user) return null;
-  
+
   const serialized = {
     _id: user._id.toString(),
     clerkId: user.clerkId,
@@ -42,12 +42,14 @@ function serializeUser(user: any): IUser | null {
     lastName: user.lastName,
     photo: user.photo,
     bio: user.bio,
+    about: user.about,
     followers: user.followers?.map((id: any) => id.toString()) || [],
     following: user.following?.map((id: any) => id.toString()) || [],
+    savedPosts: user.savedPosts?.map((id: any) => id.toString()) || [],
     createdAt: user.createdAt?.toISOString(),
     updatedAt: user.updatedAt?.toISOString()
   };
-  
+
   return serialized;
 }
 
@@ -184,6 +186,14 @@ export async function updateUser(
       );
     }
 
+    // Validate about length if provided
+    if (updateData.about && updateData.about.length > 500) {
+      throw new UserActionError(
+        'About must not exceed 500 characters',
+        'INVALID_ABOUT'
+      );
+    }
+
     const updatedUser = await User.findOneAndUpdate(
       { clerkId },
       updateData,
@@ -193,8 +203,17 @@ export async function updateUser(
       }
     ).populate('followers').populate('following');
 
+    if (!updatedUser) {
+      throw new UserActionError('User not found', 'USER_NOT_FOUND');
+    }
+
+    // Check if the about field was actually updated in the database
+    if (updateData.about && updatedUser.about !== updateData.about) {
+      throw new UserActionError('Failed to update about section', 'UPDATE_ABOUT_ERROR');
+    }
+
     revalidatePath('/profile');
-    revalidatePath(`/profile/${updatedUser?._id}`);
+    revalidatePath(`/profile/${updatedUser._id}`);
 
     return serializeUser(updatedUser);
   } catch (error) {
@@ -203,6 +222,7 @@ export async function updateUser(
     throw new UserActionError('Failed to update user', 'UPDATE_USER_ERROR');
   }
 }
+
 
 // ... (previous imports and setup)
 
@@ -227,10 +247,10 @@ export async function followUser(currentUserId: string, userToFollowId: string) 
 
     // Update both users
     await Promise.all([
-      User.findByIdAndUpdate(currentUser._id, 
+      User.findByIdAndUpdate(currentUser._id,
         { $addToSet: { following: userToFollow._id } }
       ),
-      User.findByIdAndUpdate(userToFollow._id, 
+      User.findByIdAndUpdate(userToFollow._id,
         { $addToSet: { followers: currentUser._id } }
       )
     ]);
@@ -322,7 +342,7 @@ export async function getAllUsers(options: {
       page = 1,
       limit = 10,
       search = '',
-    
+
       currentUserId
     } = options;
 

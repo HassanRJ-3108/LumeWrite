@@ -23,8 +23,8 @@ export default function UserList({ users, currentUserId }: UserListProps) {
     }, [users]);
 
     const handleFollowUpdate = (profileUserId: string, isFollowing: boolean) => {
-        setLocalUsers(prevUsers => 
-            prevUsers.map(user => 
+        setLocalUsers(prevUsers =>
+            prevUsers.map(user =>
                 user.clerkId === profileUserId
                     ? { ...user, isFollowing }
                     : user
@@ -45,15 +45,16 @@ export default function UserList({ users, currentUserId }: UserListProps) {
                         transition={{ duration: 0.3, delay: index * 0.1 }}
                         className="flex items-start gap-3"
                     >
-                        <Link href={`/profile/${user.clerkId}`} className="shrink-0">
+                        <Link href={`/profile/${user.clerkId}`} className="shrink-0 overflow-hidden rounded-full w-10 h-10">
                             <Image
                                 src={user.photo || '/placeholder.svg?height=40&width=40'}
                                 alt={user.username}
                                 width={40}
                                 height={40}
-                                className="rounded-full object-cover border border-gray-200"
+                                className="rounded-full object-cover object-center w-full h-full"
                             />
                         </Link>
+
                         <div className="flex-1 min-w-0">
                             <Link href={`/profile/${user.clerkId}`} className="block">
                                 <h3 className="font-medium truncate hover:underline">

@@ -19,14 +19,24 @@ import 'prismjs/components/prism-python';
 import 'prismjs/components/prism-java';
 import { inter, merriweather } from "@/app/ui/fonts";
 import { sourceSerif, sohne } from '@/app/layout'
-
+import { toast } from "react-hot-toast";
 
 interface PostCardProps {
   post: ISerializedPost;
   currentUserId: string;
+  isGuest: boolean;
 }
 
-export default function PostCard({ post, currentUserId }: PostCardProps) {
+export default function PostCard({ post, currentUserId, isGuest}: PostCardProps) {
+  useEffect(() => {
+    if (isGuest) {
+      toast("You're not signed in. Please consider signing in to interact with posts.", {
+        icon: "🔒",
+      });
+    }
+  }, [isGuest]);
+
+
   const [comment, setComment] = useState("");
   const { user } = useUser();
   const [isLiked, setIsLiked] = useState(post.likes.some((like: string | { _id: string }) => 
@@ -181,17 +191,24 @@ export default function PostCard({ post, currentUserId }: PostCardProps) {
       {/* Post Actions */}
       <div className="flex justify-between items-center py-6 mb-12 border-t border-b border-gray-200">
         <div className="flex items-center gap-6">
-          <button
-            onClick={handleLike}
-            className="flex items-center gap-2 text-gray-700 hover:text-gray-900"
-          >
-            <Heart className={`w-6 h-6 ${isLiked ? 'fill-gray-900 text-gray-900' : 'stroke-current'}`} />
-            <span>{likesCount}</span>
-          </button>
-          <button className="flex items-center gap-2 text-gray-700 hover:text-gray-900">
+          {user ? (
+            <button
+              onClick={handleLike}
+              className="flex items-center gap-2 text-gray-700 hover:text-gray-900"
+            >
+              <Heart className={`w-6 h-6 ${isLiked ? 'fill-gray-900 text-gray-900' : 'stroke-current'}`} />
+              <span>{likesCount}</span>
+            </button>
+          ) : (
+            <div className="flex items-center gap-2 text-gray-700">
+              <Heart className="w-6 h-6 stroke-current" />
+              <span>{likesCount}</span>
+            </div>
+          )}
+          <div className="flex items-center gap-2 text-gray-700">
             <MessageCircle className="w-6 h-6" />
             <span>{post.comments.length}</span>
-          </button>
+          </div>
         </div>
         <div className="flex items-center gap-4">
           <button className="text-gray-700 hover:text-gray-900">
@@ -255,7 +272,7 @@ export default function PostCard({ post, currentUserId }: PostCardProps) {
           Responses ({post.comments.length})
         </h3>
 
-        {user && (
+        {user ? (
           <form onSubmit={handleComment} className="mb-12">
             <textarea
               value={comment}
@@ -272,10 +289,12 @@ export default function PostCard({ post, currentUserId }: PostCardProps) {
               Respond
             </button>
           </form>
+        ) : (
+          <p className="text-gray-700 mb-12">Log in to leave a comment.</p>
         )}
 
         <div className="space-y-8">
-          {post.comments.map((comment: ISerializedComment, index: number) => (
+          {post.comments.map((comment: ISerializedComment) => (
             <div key={comment._id} className="flex items-start gap-4">
               <Link href={`/profile/${(comment.user as IUser)._id}`}>
                 <div className="relative w-10 h-10 flex-shrink-0">
@@ -335,4 +354,3 @@ function FormattedContent({ content }: { content: string }) {
     />
   );
 }
-

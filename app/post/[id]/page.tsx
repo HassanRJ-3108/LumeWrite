@@ -6,18 +6,8 @@ import { ISerializedPost } from "@/types/post";
 export default async function PostPage({ params }: { params: { id: string } }) {
   const { userId } = auth();
 
-  if (!userId) {
-    return (
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="bg-white p-8 rounded-lg shadow-md">
-          <h1 className="text-2xl font-bold mb-4">Please sign in</h1>
-          <p>You need to be signed in to view this post.</p>
-        </div>
-      </div>
-    );
-  }
-
-  const post = await getPostById(params.id) as ISerializedPost;
+  // Fetch the post data
+  const post = (await getPostById(params.id)) as ISerializedPost;
 
   if (!post) {
     return (
@@ -32,8 +22,8 @@ export default async function PostPage({ params }: { params: { id: string } }) {
 
   return (
     <div className="min-h-screen pt-16 pb-8">
-      <PostCard post={post} currentUserId={userId} />
+      {/* Pass `userId` to the PostCard */}
+      <PostCard post={post} currentUserId={userId ?? ""} isGuest={!userId} />
     </div>
   );
 }
-

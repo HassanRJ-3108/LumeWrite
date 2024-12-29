@@ -1,7 +1,8 @@
-'use client'
+"use client";
 
 import { followUser, unfollowUser } from "@/actions/user.actions";
 import { useState, useEffect } from "react";
+import { useAuth } from "@clerk/nextjs";
 
 interface FollowButtonProps {
   currentUserId: string;
@@ -18,6 +19,7 @@ export default function FollowButton({
 }: FollowButtonProps) {
   const [isFollowing, setIsFollowing] = useState(initialIsFollowing);
   const [isLoading, setIsLoading] = useState(false);
+  const { isSignedIn } = useAuth();
 
   useEffect(() => {
     setIsFollowing(initialIsFollowing);
@@ -25,7 +27,7 @@ export default function FollowButton({
 
   const handleFollow = async () => {
     if (isLoading) return;
-    
+
     setIsLoading(true);
     try {
       if (isFollowing) {
@@ -33,22 +35,28 @@ export default function FollowButton({
       } else {
         await followUser(currentUserId, profileUserId);
       }
-      
+
       const newIsFollowing = !isFollowing;
       setIsFollowing(newIsFollowing);
       onFollowUpdate?.(profileUserId, newIsFollowing);
     } catch (error: any) {
-      if (error.message === 'Already following this user') {
+      if (error.message === "Already following this user") {
         setIsFollowing(true);
-      } else if (error.message === 'Not following this user') {
+      } else if (error.message === "Not following this user") {
         setIsFollowing(false);
       } else {
-        console.error('Follow action failed:', error);
+        console.error("Follow action failed:", error);
       }
     } finally {
       setIsLoading(false);
     }
   };
+
+  if (!isSignedIn) {
+    return (
+      null
+    );
+  }
 
   return (
     <button
@@ -56,12 +64,11 @@ export default function FollowButton({
       disabled={isLoading}
       className={`px-4 py-1 rounded-full text-sm font-medium transition-colors ${
         isFollowing
-          ? 'bg-gray-200 text-gray-800 hover:bg-gray-300'
-          : 'bg-green-600 text-white hover:bg-green-700'
+          ? "bg-gray-200 text-gray-800 hover:bg-gray-300"
+          : "bg-green-600 text-white hover:bg-green-700"
       } disabled:opacity-50`}
     >
-      {isFollowing ? 'Following' : 'Follow'}
+      {isFollowing ? "Following" : "Follow"}
     </button>
   );
 }
-

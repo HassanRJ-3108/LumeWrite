@@ -14,25 +14,21 @@ import AboutSection from "@/components/AboutSection";
 const Profile = async ({ params }: { params: { id: string } }) => {
   const { userId: clerkUserId } = auth();
 
-  if (!clerkUserId) {
-    redirect("/sign-in");
-  }
-
   try {
     const isClerkId = params.id.startsWith('user_');
-    
+
     const [currentUser, profileUser, posts] = await Promise.all([
-      getUserByClerkId(clerkUserId),
+      clerkUserId ? getUserByClerkId(clerkUserId) : null,
       isClerkId ? getUserByClerkId(params.id) : getUserById(params.id),
-      getPosts()
+      getPosts(),
     ]);
 
-    if (!profileUser || !currentUser) {
+    if (!profileUser) {
       return (
         <div className="flex justify-center items-center min-h-[calc(100vh-200px)]">
           <div className="text-center">
             <h1 className="text-3xl font-bold mb-4">User not found</h1>
-            <p className="text-xl text-gray-600">This user&apos;t exist or has been removed.</p>
+            <p className="text-xl text-gray-600">This user doesn&apos;t exist or has been removed.</p>
             <Link href="/" className="mt-6 inline-block px-6 py-3 rounded-full bg-cyan-600 text-white hover:bg-cyan-700 transition-colors">
               Go Home
             </Link>
@@ -42,8 +38,8 @@ const Profile = async ({ params }: { params: { id: string } }) => {
     }
 
     const profileClerkUser = await clerkClient.users.getUser(profileUser.clerkId);
-    const isOwnProfile = currentUser._id.toString() === profileUser._id.toString();
-    const isFollowing = currentUser.following.some(id => id.toString() === profileUser._id.toString());
+    const isOwnProfile = currentUser && currentUser._id.toString() === profileUser._id.toString();
+    const isFollowing = currentUser && currentUser.following.some(id => id.toString() === profileUser._id.toString());
 
     const userPosts = posts.filter((post: ISerializedPost) => {
       const postAuthorId = typeof post.author === 'string' ? post.author : post.author._id;
@@ -100,13 +96,13 @@ const Profile = async ({ params }: { params: { id: string } }) => {
                       <CalendarDays className="w-4 h-4 mr-1" />
                       <span>Joined {new Date(profileUser.createdAt).toLocaleDateString()}</span>
                     </div>
-                    {!isOwnProfile ? (
+                    {clerkUserId && !isOwnProfile ? (
                       <FollowButton
                         currentUserId={clerkUserId}
                         profileUserId={profileUser.clerkId}
-                        isFollowing={isFollowing}
+                        isFollowing={isFollowing ?? false}
                       />
-                    ) : (
+                    ) : clerkUserId && isOwnProfile ? (
                       <Link
                         href="/profile/edit"
                         className="inline-flex items-center justify-center w-full px-6 py-2 rounded-full bg-cyan-600 text-white hover:bg-cyan-700 transition-colors"
@@ -114,6 +110,8 @@ const Profile = async ({ params }: { params: { id: string } }) => {
                         <Pencil className="w-4 h-4 mr-2" />
                         Edit Profile
                       </Link>
+                    ) : (
+                      <p className="text-sm text-gray-500">Sign in to follow this user.</p>
                     )}
                   </div>
                 </div>
@@ -155,7 +153,7 @@ const Profile = async ({ params }: { params: { id: string } }) => {
                 )}
               </TabsContent>
               <TabsContent value="about" className="min-h-[500px]">
-                <AboutSection user={profileUser} isOwnProfile={isOwnProfile} />
+                <AboutSection user={profileUser} isOwnProfile={!!clerkUserId && !!isOwnProfile} />
               </TabsContent>
             </Tabs>
           </div>
@@ -179,4 +177,3 @@ const Profile = async ({ params }: { params: { id: string } }) => {
 };
 
 export default Profile;
-
